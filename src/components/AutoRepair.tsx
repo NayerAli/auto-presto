@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardHeader, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { generatePDF } from '@/utils/pdfGenerator2';
+import { generatePDF } from '@/utils/pdfGenerator3';
 import { FormData, CheckItems } from '../types';
 
 const checkItems: CheckItems = {
