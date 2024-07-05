@@ -1,185 +1,347 @@
 // src/components/AutoRepair.tsx
+"use client"
 
 import React, { useState } from 'react';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
-import { DndProvider, useDrag, useDrop } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Card, CardHeader, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { generatePDF } from '@/utils/pdfGenerator2';
+import { FormData, CheckItems } from '../types';
 
-const ErrorMessage: React.FC<{ message: string }> = ({ message }) => (
-  <p className="text-red-500 text-sm mt-1">{message}</p>
-);
-
-interface CheckboxProps extends React.InputHTMLAttributes<HTMLInputElement> {
-  label?: string;
-  onCheckedChange?: (checked: boolean) => void;
-}
-
-const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ className, label, onCheckedChange, ...props }, ref) => {
-    const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      if (onCheckedChange) {
-        onCheckedChange(event.target.checked);
-      }
-    };
-
-    return (
-      <label className="flex items-center space-x-2 cursor-pointer">
-        <div className="relative">
-          <input
-            type="checkbox"
-            ref={ref}
-            className="sr-only"
-            onChange={handleChange}
-            {...props}
-          />
-          <div
-            className={`w-5 h-5 border-2 rounded transition-all duration-200 ease-in-out ${
-              props.checked ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300'
-            }`}
-          >
-            <svg
-              className={`w-4 h-4 text-white fill-current ${
-                props.checked ? 'opacity-100' : 'opacity-0'
-              } transition-opacity duration-200 ease-in-out`}
-              viewBox="0 0 20 20"
-            >
-              <path d="M0 11l2-2 5 5L18 3l2 2L7 18z" />
-            </svg>
-          </div>
-        </div>
-        {label && <span className="text-sm">{label}</span>}
-      </label>
-    );
-  }
-);
-
-Checkbox.displayName = 'Checkbox';
-
-interface FormData {
-  immat: string;
-  name: string;
-  phone: string;
-  brand: string;
-  model: string;
-  mileage: string;
-  nextCT: string;
-  // Add other necessary fields here
-}
-
-const generatePdfReport = (formData: FormData) => {
-  const doc = new jsPDF();
-
-  // Header
-  doc.setFontSize(16);
-  doc.text('AUTO PRESTO', 10, 10);
-  doc.setFontSize(12);
-  doc.text('3 rue de la Guadeloupe, 97490 SAINTE CLOTILDE', 10, 20);
-  doc.text('Tel: 0693 01 25 39', 10, 30);
-
-  // Main Information Table
-  const headers = [['IMMAT', 'NOM', 'PORTABLE', 'MARQUE', 'MODEL', 'KILOMETRAGE', 'PROCHAIN C.T']];
-  const data = [
-    [formData.immat, formData.name, formData.phone, formData.brand, formData.model, formData.mileage, formData.nextCT]
-  ];
-
-  doc.autoTable({
-    head: headers,
-    body: data,
-    startY: 40,
-  });
-
-  // Section Headers
-  doc.setFontSize(10);
-  doc.text('INTERIEUR', 10, 80);
-  doc.text('MOTEUR', 80, 80);
-  doc.text('AVANT', 150, 80);
-
-  // Additional custom text and formatting to match the screenshot exactly
-  doc.setFontSize(10);
-  doc.text('Antivol de roue bon état', 10, 90);
-  doc.text('Démarreur', 10, 95);
-  // Continue adding text elements for each line in the PDF to match the provided screenshot
-  // ...
-
-  // Save the PDF
-  doc.save('auto_repair_inspection.pdf');
+const checkItems: CheckItems = {
+  interior: ['Antivol de roue', 'Démarreur', 'Témoin tableau de bord', 'Rétroviseur', 'Klaxon', 'Frein à main', 'Essuie glace', 'Eclairage', 'Jeux au volant'],
+  engine: ['Teste batterie/alternateur', 'Plaque immat AV', 'Fuite boite', 'Fuite moteur', 'Supports moteur', 'Liquide de frein', 'Filtre à air', 'Courroie accessoire'],
+  front: ['Roulement', 'Pneus avant', 'Paralellisme', 'Disque avant', 'Plaquettes avant', 'Amortisseur avant', 'Biellette barre stab', 'Direction complet', 'Cardans', 'Triangles avant', 'Flexible de frein'],
+  rear: ['Pneus AR', 'Frein AR', 'Roulement AR', 'Flexible AR', 'Amortisseur AR', 'Silent Bloc AR'],
+  accessories: ['Plaque immat AR', 'Antenne radio', 'Roue de secours', 'Gilet/Triangle secu', 'Crique / Clé roue']
 };
 
-const AutoRepair: React.FC = () => {
-  const [formData, setFormData] = useState<FormData>({
-    immat: 'BS824ZE',
-    name: 'DE LARYCHAUDY',
-    phone: '0693012539',
-    brand: 'RENAULT',
-    model: 'MASTER',
-    mileage: '0 KMS',
-    nextCT: '00/01/1900',
-    // Initialize other necessary fields here
-  });
+const initialFormData: FormData = {
+  date: '',
+  immatriculation: '',
+  nom: '',
+  marque: '',
+  portable: '',
+  model: '',
+  kilometrage: '',
+  prochainCT: '',
+  interior: {},
+  engine: {},
+  front: {},
+  rear: {},
+  accessories: {},
+  comments: '',
+  revision: {
+    type: '',
+    quantity: '',
+    viscosity: '',
+    torque: ''
+  },
+  minDiscThicknessFront: '',
+  minDiscThicknessRear: '',
+  tasks: {
+    resetOilChange: false,
+    tightenWheels: false,
+    oilChangeLabel: false,
+    timingBeltLabel: false,
+    brakePadsLabel: false,
+    perfume: false,
+    cleaning: false
+  }
+};
 
-  const [errors, setErrors] = useState<{ pdfGeneration?: string; submission?: string }>({});
+export default function AutoRepairApp() {
+  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
+    setFormData(prevData => {
+      const newData = { ...prevData };
+      if (name.includes('.')) {
+        const [parent, child] = name.split('.');
+        newData[parent as keyof FormData] = {
+          ...newData[parent as keyof FormData],
+          [child]: value
+        } as any;
+      } else {
+        newData[name as keyof FormData] = value as any;
+      }
+      return newData;
+    });
+
+    if (errors[name]) {
+      setErrors(prevErrors => {
+        const newErrors = { ...prevErrors };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const handleNestedChange = (category: keyof FormData, item: string, checked: boolean) => {
+    setFormData(prevData => ({
+      ...prevData,
+      [category]: {
+        ...prevData[category as keyof typeof prevData],
+        [item]: checked,
+      },
     }));
+  };
+
+  const validateForm = () => {
+    const newErrors: { [key: string]: string } = {};
+
+    if (!formData.date) {
+      newErrors.date = "Date is required";
+    } else {
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      if (!dateRegex.test(formData.date)) {
+        newErrors.date = "Invalid date format. Use YYYY-MM-DD";
+      }
+    }
+
+    if (!/^[A-Z]{2}-\d{3}-[A-Z]{2}$/.test(formData.immatriculation)) {
+      newErrors.immatriculation = "Format d'immatriculation invalide (ex: AB-123-CD)";
+    }
+
+    if (!/^\d{10}$/.test(formData.portable)) {
+      newErrors.portable = "Numéro de téléphone invalide (10 chiffres)";
+    }
+
+    if (isNaN(Number(formData.kilometrage)) || formData.kilometrage === '') {
+      newErrors.kilometrage = "Kilométrage invalide";
+    }
+
+    if (!formData.revision.type) {
+      newErrors['revision.type'] = "Type de révision requis";
+    }
+    if (!formData.revision.quantity) {
+      newErrors['revision.quantity'] = "Quantité requise";
+    }
+    if (!formData.revision.viscosity) {
+      newErrors['revision.viscosity'] = "Viscosité requise";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      generatePdfReport(formData);
-      setErrors({});
-    } catch (err) {
-      setErrors({ pdfGeneration: 'Error generating PDF report' });
+    if (validateForm()) {
+      try {
+        const doc = generatePDF(formData);
+        doc.save('auto_repair_inspection.pdf');
+      } catch (error) {
+        console.error('Error generating PDF:', error);
+        setErrors(prevErrors => ({ ...prevErrors, pdfGeneration: 'Error generating PDF. Please try again.' }));
+      }
+    } else {
+      console.log('Form has errors');
     }
   };
 
-  return (
-    <DndProvider backend={HTML5Backend}>
-      <div className="container mx-auto p-4">
-        <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="immat" className="block text-sm font-medium text-gray-700">
-                Immatriculation
-              </label>
-              <input
-                type="text"
-                name="immat"
-                id="immat"
-                value={formData.immat}
-                onChange={handleChange}
-                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                Nom
-              </label>
-              <input
-                type="text"
-                name="name"
-                id="name"
-                value={formData.name}
-                onChange={handleChange}
-                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-            {/* Add other input fields here */}
-          </div>
-          <button type="submit" className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md">
-            Générer le rapport PDF
-          </button>
-        </form>
-        {errors.pdfGeneration && <ErrorMessage message={errors.pdfGeneration} />}
-        {errors.submission && <ErrorMessage message={errors.submission} />}
-      </div>
-    </DndProvider>
+  const renderCheckboxSection = (title: string, category: keyof CheckItems) => (
+    <Card className="mb-4">
+      <CardHeader className="pb-2">
+        <h3 className="text-lg font-medium">{title}</h3>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {checkItems[category].map((item) => (
+            <Checkbox
+              key={item}
+              id={`${category}-${item}`}
+              checked={formData[category][item] || false}
+              onCheckedChange={(checked) => handleNestedChange(category, item, checked as boolean)}
+              label={item}
+            />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
-};
 
-export default AutoRepair;
+  return (
+    <div className="max-w-7xl mx-auto p-4 bg-gray-50">
+      <h1 className="text-3xl font-bold mb-6 text-center text-blue-600">Auto Repair Inspection</h1>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <Accordion type="single" collapsible className="w-full">
+          <AccordionItem value="vehicle-info">
+            <AccordionTrigger>Vehicle Information</AccordionTrigger>
+            <AccordionContent>
+              <Card>
+                <CardContent className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-6">
+                  <div>
+                    <Label htmlFor="date">Date</Label>
+                    <Input type="date" id="date" name="date" value={formData.date} onChange={handleChange} className="w-full mt-1" />
+                    {errors.date && <p className="text-red-500 text-sm mt-1">{errors.date}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="immatriculation">Immatriculation</Label>
+                    <Input id="immatriculation" name="immatriculation" value={formData.immatriculation} onChange={handleChange} placeholder="AB-123-CD" className="w-full mt-1" />
+                    {errors.immatriculation && <p className="text-red-500 text-sm mt-1">{errors.immatriculation}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="nom">Nom</Label>
+                    <Input id="nom" name="nom" value={formData.nom} onChange={handleChange} className="w-full mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="marque">Marque</Label>
+                    <Input id="marque" name="marque" value={formData.marque} onChange={handleChange} className="w-full mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="portable">Portable</Label>
+                    <Input id="portable" name="portable" value={formData.portable} onChange={handleChange} placeholder="0123456789" className="w-full mt-1" />
+                    {errors.portable && <p className="text-red-500 text-sm mt-1">{errors.portable}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="model">Modèle</Label>
+                    <Input id="model" name="model" value={formData.model} onChange={handleChange} className="w-full mt-1" />
+                  </div>
+                  <div>
+                    <Label htmlFor="kilometrage">Kilométrage</Label>
+                    <div className="relative mt-1">
+                      <Input type="number" id="kilometrage" name="kilometrage" value={formData.kilometrage} onChange={handleChange} className="w-full pr-8" />
+                      <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-500">km</span>
+                    </div>
+                    {errors.kilometrage && <p className="text-red-500 text-sm mt-1">{errors.kilometrage}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="prochainCT">Prochain CT</Label>
+                    <Input type="date" id="prochainCT" name="prochainCT" value={formData.prochainCT} onChange={handleChange} className="w-full mt-1" />
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="checkboxes">
+            <AccordionTrigger>Inspection Checklist</AccordionTrigger>
+            <AccordionContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {renderCheckboxSection('Intérieur', 'interior')}
+                {renderCheckboxSection('Moteur', 'engine')}
+                {renderCheckboxSection('Avant', 'front')}
+                {renderCheckboxSection('Arrière', 'rear')}
+                {renderCheckboxSection('Accessoires', 'accessories')}
+              </div>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="revision">
+            <AccordionTrigger>Révision</AccordionTrigger>
+            <AccordionContent>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                      <Label htmlFor="revisionType">Type</Label>
+                      <Input id="revisionType" name="revision.type" value={formData.revision.type} onChange={handleChange} className="w-full mt-1" />
+                      {errors['revision.type'] && <p className="text-red-500 text-sm mt-1">{errors['revision.type']}</p>}
+                    </div>
+                    <div>
+                      <Label htmlFor="revisionQuantity">Quantité</Label>
+                      <div className="relative mt-1">
+                        <Input id="revisionQuantity" name="revision.quantity" value={formData.revision.quantity} onChange={handleChange} className="w-full pr-8" />
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-500">L</span>
+                      </div>
+                      {errors['revision.quantity'] && <p className="text-red-500 text-sm mt-1">{errors['revision.quantity']}</p>}
+                    </div>
+                    <div>
+                      <Label htmlFor="revisionViscosity">Viscosité</Label>
+                      <Input id="revisionViscosity" name="revision.viscosity" value={formData.revision.viscosity} onChange={handleChange} className="w-full mt-1" />
+                      {errors['revision.viscosity'] && <p className="text-red-500 text-sm mt-1">{errors['revision.viscosity']}</p>}
+                    </div>
+                    <div>
+                      <Label htmlFor="revisionTorque">Couple</Label>
+                      <div className="relative mt-1">
+                        <Input id="revisionTorque" name="revision.torque" value={formData.revision.torque} onChange={handleChange} className="w-full pr-8" />
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-500">NM</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="disc-thickness">
+            <AccordionTrigger>Épaisseur minimale des disques</AccordionTrigger>
+            <AccordionContent>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="minDiscThicknessFront">Avant</Label>
+                      <div className="relative mt-1">
+                        <Input id="minDiscThicknessFront" name="minDiscThicknessFront" value={formData.minDiscThicknessFront} onChange={handleChange} className="w-full pr-8" />
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-500">mm</span>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="minDiscThicknessRear">Arrière</Label>
+                      <div className="relative mt-1">
+                        <Input id="minDiscThicknessRear" name="minDiscThicknessRear" value={formData.minDiscThicknessRear} onChange={handleChange} className="w-full pr-8" />
+                        <span className="absolute inset-y-0 right-0 flex items-center pr-2 text-gray-500">mm</span>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="tasks">
+            <AccordionTrigger>Travaux</AccordionTrigger>
+            <AccordionContent>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                    {Object.entries(formData.tasks).map(([key, value]) => (
+                      <Checkbox
+                        key={key}
+                        id={`tasks-${key}`}
+                        checked={value}
+                        onCheckedChange={(checked) => handleNestedChange('tasks', key, checked as boolean)}
+                        label={key.replace(/([A-Z])/g, ' $1').trim()}
+                      />
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="comments">
+            <AccordionTrigger>Commentaires</AccordionTrigger>
+            <AccordionContent>
+              <Card>
+                <CardContent className="pt-6">
+                  <Textarea
+                    id="comments"
+                    name="comments"
+                    value={formData.comments}
+                    onChange={handleChange}
+                    className="w-full"
+                    rows={4}
+                  />
+                </CardContent>
+              </Card>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+        <Button type="submit" className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300">
+          Générer le rapport PDF
+        </Button>
+      </form>
+      {errors.pdfGeneration && <p className="text-red-500 mt-2 text-center">{errors.pdfGeneration}</p>}
+    </div>
+  );
+}
